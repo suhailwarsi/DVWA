@@ -1,0 +1,59 @@
+name: DevSecOps Security Scanning (Fast Setup)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  security-scans:
+    name: Run Security Scans
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v3
+
+    # -------------------------------------
+    # 1. SEMGREP (Static Code Analysis)
+    # -------------------------------------
+    - name: 🔍 Run Semgrep
+      uses: returntocorp/semgrep-action@v1
+      with:
+        config: auto
+        generateSarif: false
+      continue-on-error: true
+
+    # -------------------------------------
+    # 2. GITLEAKS (Secrets Scanning)
+    # -------------------------------------
+    - name: 🔐 Run Gitleaks
+      uses: gitleaks/gitleaks-action@v2
+      with:
+        args: detect --source=. --report-format=json --report-path=gitleaks-report.json
+      continue-on-error: true
+
+    # -------------------------------------
+    # 3. TRIVY (Dependency + Filesystem SCA)
+    # -------------------------------------
+    - name: 🐳 Run Trivy
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: fs
+        scan-ref: .
+        format: json
+        output: trivy-report.json
+      continue-on-error: true
+
+    # -------------------------------------
+    # 4. Upload All Reports
+    # -------------------------------------
+    - name: 📦 Upload Scan Reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-scan-reports
+        path: |
+          gitleaks-report.json
+          trivy-report.json
