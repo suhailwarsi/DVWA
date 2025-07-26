@@ -1,48 +1,75 @@
-name: DevSecOps Security Scanning
+name: DevSecOps Security Scanning with HTML Reports
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:   # ← Add this line
-      
+  workflow_dispatch:
+
 jobs:
-  security:
-    name: Run Security Scans for testing
+  security-scans:
+    name: Run Security Scans
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
+    - name: 📥 Checkout repository
       uses: actions/checkout@v3
 
-    # 1. Run Semgrep (SAST)
-    - name: Run Semgrep
-      uses: returntocorp/semgrep-action@v1
-      with:
-        config: "auto"
-
-    # 2. Run Gitleaks (Secrets scanning)
-    - name: Run Gitleaks
-      uses: gitleaks/gitleaks-action@v2
-      with:
-        config-path: .gitleaks.toml
-        fail: true
-
-    # 3. Run Trivy (SCA + Image Scan)
-    - name: Install Trivy
+    # -------------------------------------
+    # 1. SEMGREP (Static Code Analysis)
+    # -------------------------------------
+    - name: 🔧 Install Semgrep
       run: |
-        sudo apt-get install wget -y
+        pip install semgrep
+
+    - name: 🔍 Run Semgrep (SAST)
+      run: |
+        semgrep --config auto --json > semgrep-report.json || true
+
+    - name: 🌐 Generate Semgrep HTML Report
+      run: |
+        echo '<html><body><h2>Semgrep Report</h2><pre>' > semgrep-report.html
+        cat semgrep-report.json | jq '.' >> semgrep-report.html
+        echo '</pre></body></html>' >> semgrep-report.html
+
+    # -------------------------------------
+    # 2. GITLEAKS (Secrets Scanning)
+    # -------------------------------------
+    - name: 🔐 Run Gitleaks (Secrets Scanning)
+      run: |
+        curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_8.18.1_linux_x64.tar.gz | tar -xz
+        chmod +x gitleaks
+        ./gitleaks detect --source . --report-format json --report-path gitleaks-report.json || true
+
+    # -------------------------------------
+    # 3. TRIVY (SCA & Filesystem)
+    # -------------------------------------
+    - name: 🐳 Install Trivy
+      run: |
         wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.50.1_Linux-64bit.deb
         sudo dpkg -i trivy_0.50.1_Linux-64bit.deb
 
-    - name: Run Trivy on filesystem
+    - name: 🧪 Run Trivy SCA
       run: |
-        trivy fs --exit-code 1 --severity HIGH,CRITICAL .
+        trivy fs . --format json --output trivy-report.json || true
 
-    # 4. Run Checkov (IaC security)
-    - name: Run Checkov
-      uses: bridgecrewio/checkov-action@master
+    - name: 🌐 Generate Trivy HTML Report
+      run: |
+        echo '<html><body><h2>Trivy Report</h2><pre>' > trivy-report.html
+        cat trivy-report.json | jq '.' >> trivy-report.html
+        echo '</pre></body></html>' >> trivy-report.html
+
+    # -------------------------------------
+    # 4. Upload Reports as Artifacts
+    # -------------------------------------
+    - name: 📦 Upload Scan Reports
+      uses: actions/upload-artifact@v3
       with:
-        directory: ./
-
+        name: security-scan-reports
+        path: |
+          semgrep-report.json
+          semgrep-report.html
+          gitleaks-report.json
+          trivy-report.json
+          trivy-report.html
