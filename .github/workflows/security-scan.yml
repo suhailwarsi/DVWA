@@ -20,8 +20,7 @@ jobs:
     # 1. SEMGREP (Static Code Analysis)
     # -------------------------------------
     - name: 🔧 Install Semgrep
-      run: |
-        pip install semgrep
+      run: pip install semgrep
 
     - name: 🔍 Run Semgrep (SAST)
       run: |
@@ -49,12 +48,12 @@ jobs:
         trivy fs . --format json --output trivy-report.json || true
 
     # -------------------------------------
-    # 4. Install Python & Convert Reports to Bootstrap HTML
+    # 4. Generate Bootstrap HTML Reports (Semgrep + Trivy)
     # -------------------------------------
-    - name: 🐍 Convert JSON Reports to HTML
+    - name: 🐍 Convert JSON to HTML with Python
       run: |
-        echo '--- Writing Python conversion script ---'
-        cat <<EOF > convert_to_html.py
+        echo "Writing Python script..."
+        cat << 'EOF' > convert_to_html.py
 import json, sys
 
 report_type = sys.argv[1]
@@ -62,57 +61,15 @@ input_file = sys.argv[2]
 output_file = sys.argv[3]
 
 def style_sev(sev):
-  return {
-    "CRITICAL": "danger",
-    "HIGH": "warning",
-    "MEDIUM": "info",
-    "LOW": "light"
-  }.get(sev.upper(), "secondary")
+    return {
+        "CRITICAL": "danger",
+        "HIGH": "warning",
+        "MEDIUM": "info",
+        "LOW": "light"
+    }.get(sev.upper(), "secondary")
 
-html = f'''<html><head><title>{report_type.upper()} Report</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"></head><body>
-<div class="container mt-5"><h2>{report_type.upper()} Report</h2>
-<table class="table table-bordered"><thead><tr>
-<th>Rule</th><th>Severity</th><th>Message</th><th>File</th><th>Line</th></tr></thead><tbody>
-'''
-
-with open(input_file, 'r') as f: data = json.load(f)
-
-if report_type == "semgrep":
-  for r in data.get("results", []):
-    sev = r.get("severity", "INFO")
-    html += f'''<tr class="table-{style_sev(sev)}">
-<td>{r.get("check_id")}</td><td>{sev}</td>
-<td>{r.get("extra", {}).get("message", "")}</td>
-<td>{r.get("path")}</td><td>{r.get("start", {}).get("line")}</td></tr>'''
-elif report_type == "trivy":
-  for res in data.get("Results", []):
-    for v in res.get("Vulnerabilities", []):
-      sev = v.get("Severity", "UNKNOWN")
-      html += f'''<tr class="table-{style_sev(sev)}">
-<td>{v.get("VulnerabilityID")}</td><td>{sev}</td>
-<td>{v.get("Title")}</td>
-<td>{res.get("Target")}</td>
-<td>{v.get("InstalledVersion")}</td></tr>'''
-
-html += "</tbody></table></div></body></html>"
-
-with open(output_file, 'w') as f: f.write(html)
-EOF
-
-        python3 convert_to_html.py semgrep semgrep-report.json semgrep-report.html
-        python3 convert_to_html.py trivy trivy-report.json trivy-report.html
-
-    # -------------------------------------
-    # 5. Upload All Reports as Artifacts
-    # -------------------------------------
-    - name: 📦 Upload Scan Reports
-      uses: actions/upload-artifact@v4
-      with:
-        name: security-scan-reports
-        path: |
-          semgrep-report.json
-          semgrep-report.html
-          gitleaks-report.json
-          trivy-report.json
-          trivy-report.html
+html = f"""<html><head><title>{report_type.upper()} Report</title>
+<link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css'></head><body>
+<div class='container mt-5'><h2>{report_type.upper()} Report</h2>
+<table class='table table-bordered'><thead><tr>
+<th>Rule</th><th>Severity</th><th>Message</th><th>File</th><th>Line</th>
