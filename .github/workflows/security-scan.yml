@@ -8,7 +8,7 @@ on:
 
 jobs:
   security:
-    name: Run Security Scans
+    name: Run Security Scans for testing
     runs-on: ubuntu-latest
 
     steps:
