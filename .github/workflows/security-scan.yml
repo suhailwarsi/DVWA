@@ -29,10 +29,10 @@ jobs:
     # 2. GITLEAKS (Secrets Scanning)
     # -------------------------------------
     - name: 🔐 Run Gitleaks (Secrets Scanning)
-  uses: gitleaks/gitleaks-action@v2
-  with:
-    args: detect --source=. --report-format=json --report-path=gitleaks-report.json
-  continue-on-error: true
+      uses: gitleaks/gitleaks-action@v2
+      with:
+        args: detect --source=. --report-format=json --report-path=gitleaks-report.json
+      continue-on-error: true
 
     # -------------------------------------
     # 3. TRIVY (SCA + Filesystem Scanning)
