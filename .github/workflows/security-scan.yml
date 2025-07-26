@@ -5,7 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-
+  workflow_dispatch:   # ← Add this line
+      
 jobs:
   security:
     name: Run Security Scans for testing
