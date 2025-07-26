@@ -1,4 +1,4 @@
-name: DevSecOps Security Scanning with HTML Reports
+name: DevSecOps Security Scanning
 
 on:
   push:
@@ -13,79 +13,48 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: 📥 Checkout repository
+    - name: 📥 Checkout Code
       uses: actions/checkout@v3
 
     # -------------------------------------
-    # 1. SEMGREP (Static Code Analysis)
+    # 1. SEMGREP (SAST - Static Code Analysis)
     # -------------------------------------
     - name: 🔧 Install Semgrep
       run: pip install semgrep
 
-    - name: 🔍 Run Semgrep (SAST)
+    - name: 🔍 Run Semgrep
       run: |
         semgrep --config auto --json > semgrep-report.json || true
 
     # -------------------------------------
     # 2. GITLEAKS (Secrets Scanning)
     # -------------------------------------
-    - name: 🔐 Run Gitleaks (Secrets Scanning)
+    - name: 🔐 Run Gitleaks
       run: |
         curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_8.18.1_linux_x64.tar.gz | tar -xz
         chmod +x gitleaks
         ./gitleaks detect --source . --report-format json --report-path gitleaks-report.json || true
 
     # -------------------------------------
-    # 3. TRIVY (SCA + Filesystem)
+    # 3. TRIVY (SCA + Filesystem Scanning)
     # -------------------------------------
     - name: 🐳 Install Trivy
       run: |
         wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.50.1_Linux-64bit.deb
         sudo dpkg -i trivy_0.50.1_Linux-64bit.deb
 
-    - name: 🧪 Run Trivy Scan
+    - name: 🧪 Run Trivy
       run: |
         trivy fs . --format json --output trivy-report.json || true
 
     # -------------------------------------
-    # 4. Generate Bootstrap HTML Reports (Semgrep + Trivy)
+    # 4. Upload Reports to GitHub Artifacts
     # -------------------------------------
-    - name: 🐍 Convert JSON to HTML with Python
-      run: |
-        echo "Writing Python script..."
-        cat <<EOF > convert_to_html.py
-import json, sys
-
-report_type = sys.argv[1]
-input_file = sys.argv[2]
-output_file = sys.argv[3]
-
-def style_sev(sev):
-    return {
-        "CRITICAL": "danger",
-        "HIGH": "warning",
-        "MEDIUM": "info",
-        "LOW": "light"
-    }.get(sev.upper(), "secondary")
-
-html = f"""<html><head><title>{report_type.upper()} Report</title>
-<link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css'></head><body>
-<div class='container mt-5'><h2>{report_type.upper()} Report</h2>
-<table class='table table-bordered'><thead><tr>
-<th>Rule</th><th>Severity</th><th>Message</th><th>File</th><th>Line</th></tr></thead><tbody>
-"""
-
-with open(input_file, 'r') as f:
-    data = json.load(f)
-
-if report_type == "semgrep":
-    for r in data.get("results", []):
-        sev = r.get("severity", "INFO")
-        html += f"<tr class='table-{style_sev(sev)}'><td>{r.get('check_id')}</td><td>{sev}</td><td>{r.get('extra', {}).get('message')}</td><td>{r.get('path')}</td><td>{r.get('start', {}).get('line')}</td></tr>"
-elif report_type == "trivy":
-    for res in data.get("Results", []):
-        for v in res.get("Vulnerabilities", []):
-            sev = v.get("Severity", "UNKNOWN")
-            html += f"<tr class='table-{style_sev(sev)}'><td>{v.get('VulnerabilityID')}</td><td>{sev}</td><td>{v.get('Title')}</td><td>{res.get('Target')}</td><td>{v.get('InstalledVersion')}</td></tr>"
-
-html += "</tbody></table></div></body></html>"
+    - name: 📦 Upload Scan Reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-scan-reports
+        path: |
+          semgrep-report.json
+          gitleaks-report.json
+          trivy-report.json
